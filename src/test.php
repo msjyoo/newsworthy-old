@@ -6,7 +6,7 @@ libxml_use_internal_errors(true);
 // load the document
 $doc = new DOMDocument();
 
-if (!$doc->loadHTML(file_get_contents("test4.html"))) {
+if (!$doc->loadHTML(file_get_contents("test5.html"))) {
     foreach (libxml_get_errors() as $error) {
         // handle errors here
     }
@@ -47,11 +47,11 @@ asort($b);
 //var_dump($b);
 //var_dump($d);
 
-var_dump(array_map(function ($x) {
-    return $x[0];
-}, $d));
+//var_dump(array_map(function ($x) {
+//    return $x[0];
+//}, $d));
 
-//var_dump($d);
+var_dump($d);
 
 //foreach($doc->childNodes as $n)
 //{
