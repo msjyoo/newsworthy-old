@@ -1,0 +1,49 @@
+It has been a while since I’ve written about Minecraft-like games, and so today I figured I’d take a moment to discuss something which seems to come up a lot in online discussions, specifically how to implement ambient occlusion in a Minecraft-like game:
+
+Ambient occlusion was originally introduced into Minecraft as a mod, and eventually incorporated into the core Minecraft engine along with a host of other lighting improvements under the general name of “smooth lighting”. To those who are in-the-know on voxel engine development, this stuff is all pretty standard, but I haven’t yet seen it written up in an accessible format yet.  So I decided to write a quick blog post on it, as well as discuss a few of the small technical issues that come up when you implement it within a system that uses greedy meshing.
+
+Ambient occlusion is a simple and effective technique for improving the quality of lighting in virtual environments.  The basic idea is to approximate the amount of ambient light that is propagated through the scene towards a point from distant reflections.  The basis for this idea is a heuristic or empirical argument, and can be computed by finding the amount of surface area on a hemisphere which is visible from a given point:
+
+Adding an ambient occlusion factor to a scene can greatly improve the visual fidelity, and so a lot of thought has gone into methods for calculating and approximating ambient occlusion efficiently.  Broadly speaking, there are two general approaches to accessibility computation:
+
+Perhaps the most well known of these approaches is the famous screen-space ambient occlusion algorithm:
+
+P. Shanmugam, O. Arikan. “Hardware accelerated ambient occlusion techniques on GPUs“.  SIGGRAPH 2007.
+
+The general idea is to read out the contents of the depth buffer, and then use this geometry to approximate the accessibility of each pixel.  This can then be used to shade all of the pixels on the screen:
+
+Screen space ambient occlusion is nice in that it is really easy to integrate into an existing rendering pipeline — especially with deferred shading — (it is just a post process!) but the downside is that because the depth buffer is not a true model of the scene geometry it can introduce many weird artefacts.  This link has a brief (humorous/NSFW) survey of these flaws.
+
+Fortunately, in a voxel game there is a way to implement ambient occlusion which is not only faster, but also view independent.  The general idea is to calculate the ambient occlusion for each vertex using only the information from the cubes which are adjacent to it.  Taking this into account, there are up to symmetry 4 possible ambient occlusion values for a vertex:
+
+Using this chart we can deduce a pattern.  Let side1 and side2 be 0/1 depending on the presence of the side voxels and let corner be the opacity state of the corner voxel.  Then we can compute the ambient occlusion of a vertex using the following function:
+
+It is actually quite easy to integrate the above ambient occlusion algorithm into a system that uses greedy meshing.  The key idea is that we just need to merge facets which have the same ambient occlusion value across each of their vertices.  This works because along each of the greedy edges that have length greater than 1 voxel the ambient occlusion values of the greedy mesh will be constant (exercise for reader: prove this).  So, there is almost nothing to do here except modify the code that checks if two voxels should be merged.
+
+There is a second issue here though that is a bit more subtle. Recall that to render a quad on it needs to be subdivided into two triangles.  This subdivision introduces anisotropy in how non-linear values will get interpolated along a quad.  For the case where the ambient occlusion values of a quad are not coplanar, this will introduce a dependence on how the quad is subdivided.  To illustrate this effect, consider the following picture:
+
+Notice that the ambient occlusion is different for the vertices on the side than it is for the vertices on the top and bottom.  To fix this, we just need to pick a consistent orientation for the quads.  This can be done by comparing the ambient occlusion terms for each quad and selecting an appropriate orientation.  Supposing that a00, a01, a11, a01 are the ambient occlusion values for the four vertices of a quad sorted in clockwise order.  Then we can correct this problem using the following rule:
+
+This one simple trick easily fixes the display problem:
+
+Adding ambient occlusion to a voxel game is super easy to do and carries little cost besides a modest increase in mesh construction time.  It also improves the visual quality of the results enormously, and so it is one of those no-brainer features to add.  There are plenty of places to go further with this.  For example, you could take the ambient occlusion of the complement space to create translucency effects in a voxel game (kind of like this idea).  You would also probably want to combine this technique with other more sophisticated lighting methods to handle things like shadows and possibly reflections, but this maybe a better topic for another post.
+
+EDIT 1:  Embarrassingly I had the initial definition for ambient occlusion wrong.  I fixed this.
+
+EDIT 2: Mrmessiah, who is probably the true inventor of this technique commented on a reddit thread about this and said the following:
+
+This post caught my eye – I was the guy that wrote the original Ambient Occlusion mod for Minecraft. Minecraft’s original lighting system (I think!) had air blocks with discrete lighting levels from 0 to 15 and any block face exposed to one took its lighting level from that.
+
+You sum it up how the first working version of my algorithm worked pretty well! That first version still had the “blocky” look because the underlying faces were still taking their light level from the air block touching them, but at least the AO effect softened it a bit where you had geometry nearby. edit Here’s the very first pic of it working on my test map and you can see what I mean about the “blocky light with AO” thing.
+
+The smooth lighting variant came later – that worked slightly differently, by averaging light levels at vertices on a plane. Originally I had thought I would have that as an “additional” effect on top of the AO effect, and just apply it on flat surfaces. But then I realised, because the lighting level of solid blocks was 0, I could just do that averaging everywhere, and it’d give me AO for free. I suck at explaining without diagrams, unfortunately.😦
+
+I should say that the lighting system currently in Minecraft was written by Jeb, he did contact me to see about using mine and I said “sure” and offered to give him my code but I think he reimplemented his own variant of it in the mean time.
+
+Don’t know if I was the first person to come up with either algorithm, but it was fun working out how to do it.
+
+EDIT 3:  Since posting this, I’ve learned about at least two other write ups of this idea.  Here they are:
+
+Micheal Goodfellow: http://www.sea-of-memes.com/LetsCode35/LetsCode35.html
+
+Kiwibonga: http://www.reddit.com/r/gamedev/comments/1gvk18/how_to_show_edges_of_a_flatcolored_cube/cao9n91

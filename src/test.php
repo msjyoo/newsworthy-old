@@ -6,7 +6,7 @@ libxml_use_internal_errors(true);
 // load the document
 $doc = new DOMDocument();
 
-if (!$doc->loadHTML(file_get_contents("test5.html"))) {
+if (!$doc->loadHTML(file_get_contents(__DIR__."/../curated/article_text/00001-0fps.net-2016-09-16-blog/page.html"))) {
     foreach (libxml_get_errors() as $error) {
         // handle errors here
     }
@@ -15,6 +15,12 @@ if (!$doc->loadHTML(file_get_contents("test5.html"))) {
 }
 
 $elements = $doc->getElementsByTagName('script');
+for ($i = $elements->length; --$i >= 0; ) {
+    $href = $elements->item($i);
+    $href->parentNode->removeChild($href);
+}
+
+$elements = $doc->getElementsByTagName('style');
 for ($i = $elements->length; --$i >= 0; ) {
     $href = $elements->item($i);
     $href->parentNode->removeChild($href);
@@ -51,7 +57,15 @@ asort($b);
 //    return $x[0];
 //}, $d));
 
-var_dump($d);
+$s = array_map(function ($x) {
+    return [substr_count(implode("\r\n", $x), "the"), $x[0], $x];
+}, $d);
+
+usort($s, function ($a, $b) {
+    return $b[0] - $a[0]; // Sort reverse
+});
+
+file_put_contents(__DIR__."/../curated/article_text/00001-0fps.net-2016-09-16-blog/article.txt", implode("\r\n\r\n", $s[0][2])."\r\n");
 
 //foreach($doc->childNodes as $n)
 //{
