@@ -6,7 +6,7 @@ libxml_use_internal_errors(true);
 // load the document
 $doc = new DOMDocument();
 
-if (!$doc->loadHTML(file_get_contents(__DIR__."/../curated/article_text/00001-0fps.net-2016-09-16-blog/page.html"))) {
+if (!$doc->loadHTML(file_get_contents(__DIR__."/../curated/article_text/00002-reuters.com-2016-09-19-newsarticle/page.html"))) {
     foreach (libxml_get_errors() as $error) {
         // handle errors here
     }
@@ -65,7 +65,15 @@ usort($s, function ($a, $b) {
     return $b[0] - $a[0]; // Sort reverse
 });
 
-file_put_contents(__DIR__."/../curated/article_text/00001-0fps.net-2016-09-16-blog/article.txt", implode("\r\n\r\n", $s[0][2])."\r\n");
+$e = $s[0][2];
+
+$e = array_map(function ($x) {
+    return trim($x);
+}, $e);
+
+$e = array_filter($e);
+
+file_put_contents(__DIR__."/../curated/article_text/00002-reuters.com-2016-09-19-newsarticle/article.txt", implode("\r\n\r\n", $e)."\r\n");
 
 //foreach($doc->childNodes as $n)
 //{
