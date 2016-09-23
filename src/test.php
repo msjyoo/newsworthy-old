@@ -1,57 +1,74 @@
 <?php
 
-// enable user error handling
-libxml_use_internal_errors(true);
+require_once __DIR__."../vendor/autoload.php";
 
-// load the document
-$doc = new DOMDocument();
+function createDOMDocumentFromHTML(string $html): DOMDocument
+{
+    // Enable user error handling, see http://php.net/manual/en/function.libxml-use-internal-errors.php
+    $prev = libxml_use_internal_errors(true);
 
-if (!$doc->loadHTML(file_get_contents(__DIR__."/../curated/article_text/00002-reuters.com-2016-09-19-newsarticle/page.html"))) {
-    foreach (libxml_get_errors() as $error) {
-        // handle errors here
+    $doc = new DOMDocument();
+
+    if (!$doc->loadHTML($html)) {
+        foreach (libxml_get_errors() as $error) {
+            /** @var libXMLError $error */
+            throw new \RuntimeException("libXML Error: {$error->level} {$error->column} {$error->message} {$error->line}");
+        }
+
+        libxml_clear_errors();
     }
 
-    libxml_clear_errors();
+    libxml_use_internal_errors($prev);
+
+    return $doc;
 }
 
-$elements = $doc->getElementsByTagName('script');
-for ($i = $elements->length; --$i >= 0; ) {
-    $href = $elements->item($i);
-    $href->parentNode->removeChild($href);
+function removeElementsByTagName(DOMDocument $doc, string $name): DOMDocument
+{
+    $elements = $doc->getElementsByTagName($name);
+    for ($i = $elements->length; --$i >= 0; ) {
+        $href = $elements->item($i);
+        $href->parentNode->removeChild($href);
+    }
+
+    return $doc;
 }
 
-$elements = $doc->getElementsByTagName('style');
-for ($i = $elements->length; --$i >= 0; ) {
-    $href = $elements->item($i);
-    $href->parentNode->removeChild($href);
-}
+$doc = createDOMDocumentFromHTML(file_get_contents($pa = glob(__DIR__."/../curated/article_text/00002-*/page.html")[0]));
+
+$cssToInlineStyles = new \TijsVerkoyen\CssToInlineStyles\CssToInlineStyles();
+
+// name link, if rel=stylesheet, select href
+
+$doc = removeElementsByTagName($doc, 'script');
+$doc = removeElementsByTagName($doc, 'style');
 
 $elements = array_filter(iterator_to_array($doc->getElementsByTagName('*')), function ($element) {
-    /** @var DOMNode $element */
+    /** @var DOMElement $element */
     return $element->nodeName === "p" or $element->nodeName === "li";
 });
 
-$a = [];
+$pathNames = [];
 $d = [];
 
 foreach($elements as $n)
 {
-    /** @var DomNode $n */
+    /** @var DomElement $n */
     $path = $n->parentNode->getNodePath();
     $path = preg_replace('/\/(?:span|li|ul)\[?\d*\]?/', "", $path);
 
-    $a[] = $path;
+    $pathNames[] = $path;
     $d[$path][] = $n->nodeValue;
 
     // TODO: score of shortest node path with number of elements?
 }
 
-$b = array_count_values($a);
+$b = array_count_values($pathNames);
 
 asort($b);
 
 //var_dump($b);
-//var_dump($d);
+//var_dump($d);exit;
 
 //var_dump(array_map(function ($x) {
 //    return $x[0];
@@ -73,7 +90,7 @@ $e = array_map(function ($x) {
 
 $e = array_filter($e);
 
-file_put_contents(__DIR__."/../curated/article_text/00002-reuters.com-2016-09-19-newsarticle/article.txt", implode("\r\n\r\n", $e)."\r\n");
+file_put_contents(substr($pa, 0, -10)."/article.txt", implode("\r\n\r\n", $e)."\r\n");
 
 //foreach($doc->childNodes as $n)
 //{
