@@ -1,17 +1,18 @@
 #!/bin/bash
 
 command -v php >/dev/null 2>&1 || { echo >&2 "I require php but it's not installed.  Aborting."; exit 1; }
+command -v colordiff >/dev/null 2>&1 || { echo >&2 "I require colordiff but it's not installed.  Aborting."; exit 1; }
 
 echo "Running test suite curated/article_text ..."
 
-#tempfile=$(mktemp)
-#trap 'rm -f -- "$tempfile"' INT TERM HUP EXIT
+tempfile=$(mktemp)
+trap 'rm -f -- "$tempfile"' INT TERM HUP EXIT
 
 for dir in curated/article_text/*; do
     if [[ -d "$dir" && ! -L "$dir" && "$dir" != "curated/article_text/00000-domain-accessyyyy-mm-dd-articletype" ]]; then
         echo -n "Running test $dir ... "
 
-        #cat "$dir/article.txt" | unix2dos >> "$tempfile"
+        cat "$dir/article.txt" | dos2unix > "$tempfile"
         diffout=$(php -r "
         require_once __DIR__.'/vendor/autoload.php';
 
@@ -22,7 +23,7 @@ for dir in curated/article_text/*; do
         );
 
         exit;
-        " | dos2unix | diff "$dir/article.txt" -)
+        " | dos2unix | diff -u "$tempfile" - | colordiff)
 
         if [[ "$diffout" ]]; then
             echo "FAIL"
@@ -37,4 +38,4 @@ for dir in curated/article_text/*; do
     fi
 done
 
-#rm "$tempfile"
+rm "$tempfile"

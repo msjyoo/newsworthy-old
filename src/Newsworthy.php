@@ -18,8 +18,8 @@ class Newsworthy
 
         $XPath = new \DOMXPath($document);
 
-        // 1. First, let's iterate through tags that are likely to contain the article text
-        $textElements = $XPath->query('//div/text() | //p/text() | //li/text()');
+        // 1. First, get the leaf text of every node
+        $textElements = $XPath->query('//*/text()'); // TODO: Fix it so that it includes <a>link</a> etc.
 
         // Filter elements without any textContent because why not
         $textElements = array_filter(array_map(function ($x) {
