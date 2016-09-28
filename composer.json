@@ -1,0 +1,21 @@
+{
+    "name": "sekjun9878/newsworthy",
+    "description": "Algorithm to extract text from web news articles.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Michael Yoo",
+            "email": "michael@yoo.id.au"
+        }
+    ],
+    "require": {
+        "php": ">=7.0.0",
+        "ext-dom": "*",
+        "tijsverkoyen/css-to-inline-styles": "^2.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "sekjun9878\\Newsworthy\\": "src/"
+        }
+    }
+}
