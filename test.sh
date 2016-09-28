@@ -25,9 +25,14 @@ for dir in curated/article_text/*; do
         " | dos2unix | diff "$dir/article.txt" -)
 
         if [[ "$diffout" ]]; then
-            echo "OK"
-        else
             echo "FAIL"
+            echo "================================================================="
+            echo "$diffout"
+            echo "================================================================="
+            echo
+            echo
+        else
+            echo "OK"
         fi
     fi
 done
