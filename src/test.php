@@ -1,6 +1,8 @@
 <?php
 
-require_once __DIR__."../vendor/autoload.php";
+ini_set('xdebug.var_display_max_data', 99999);
+
+require_once __DIR__."/../vendor/autoload.php";
 
 function createDOMDocumentFromHTML(string $html): DOMDocument
 {
@@ -34,19 +36,33 @@ function removeElementsByTagName(DOMDocument $doc, string $name): DOMDocument
     return $doc;
 }
 
-$doc = createDOMDocumentFromHTML(file_get_contents($pa = glob(__DIR__."/../curated/article_text/00002-*/page.html")[0]));
+function applyCssAllWithDownload(DOMDocument $doc): DOMDocument
+{
+    // name link, if rel=stylesheet, select href
+    $cssToInlineStyles = new \TijsVerkoyen\CssToInlineStyles\CssToInlineStyles();
+}
 
-$cssToInlineStyles = new \TijsVerkoyen\CssToInlineStyles\CssToInlineStyles();
-
-// name link, if rel=stylesheet, select href
+//$doc = createDOMDocumentFromHTML(file_get_contents($pa = glob(__DIR__."/../curated/article_text/00002-*/page.html")[0]));
+$doc = createDOMDocumentFromHTML(file_get_contents($pa = glob(__DIR__."/test6.html")[0]));
 
 $doc = removeElementsByTagName($doc, 'script');
 $doc = removeElementsByTagName($doc, 'style');
 
-$elements = array_filter(iterator_to_array($doc->getElementsByTagName('*')), function ($element) {
-    /** @var DOMElement $element */
-    return $element->nodeName === "p" or $element->nodeName === "li";
-});
+$XPath = new DOMXPath($doc);
+
+/*
+ * Source for the XPath: http://stackoverflow.com/a/6399988/1349450
+ *
+ * Why do this? Because I want the text value of only the leaf nodes, and their values only
+ * excluding anything inside their <span> descendants etc.
+ */
+
+$textNodes = $XPath->query('//div/text() | //p/text() | //li/text()');
+
+$elements = array_filter(array_map(function ($x) {
+    /** @var DomElement $x */
+    return $x;
+}, iterator_to_array($textNodes)), function($x) { return trim($x->textContent) !== ""; });
 
 $pathNames = [];
 $d = [];
@@ -55,7 +71,7 @@ foreach($elements as $n)
 {
     /** @var DomElement $n */
     $path = $n->parentNode->getNodePath();
-    $path = preg_replace('/\/(?:span|li|ul)\[?\d*\]?/', "", $path);
+    $path = preg_replace('/\/(?:span|li|ul|text\(\))\[?\d*\]?/', "", $path);
 
     $pathNames[] = $path;
     $d[$path][] = $n->nodeValue;
@@ -90,7 +106,8 @@ $e = array_map(function ($x) {
 
 $e = array_filter($e);
 
-file_put_contents(substr($pa, 0, -10)."/article.txt", implode("\r\n\r\n", $e)."\r\n");
+//file_put_contents(substr($pa, 0, -10)."/article.txt", implode("\r\n\r\n", $e)."\r\n");
+var_dump(implode("\r\n\r\n", $e)."\r\n");
 
 //foreach($doc->childNodes as $n)
 //{
