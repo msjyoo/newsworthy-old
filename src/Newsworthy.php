@@ -9,31 +9,18 @@ class Newsworthy
         $document = removeElementsByTagName($document, 'script');
         $document = removeElementsByTagName($document, 'style');
 
-        /*
-         * Source for the XPath: http://stackoverflow.com/a/6399988/1349450
-         *
-         * Why do this? Because I want the text value of only the leaf nodes, and their values only
-         * excluding anything inside their <span> descendants etc.
-         */
+        // 1. First, get the leaf text of every node ignoring some textual elements
+        //$textElements = (new \DOMXPath($document))->query("//div | //p | //li");
 
-        $XPath = new \DOMXPath($document);
-
-        // 1. First, get the leaf text of every node
-        $textElements = $XPath->query('//*/text()'); // TODO: Fix it so that it includes <a>link</a> etc.
+        $textElements = selectAllLeafNodesIgnoring($document, $ignore = ["a", "span", "strong", "i"]);
 
         // Filter elements without any textContent because why not
-        $textElements = array_filter(array_map(function ($x) {
+        $textElements = array_filter($textElements, function ($x) use ($ignore) {
             /** @var \DomElement $x */
-            return $x;
-        }, iterator_to_array($textElements)), function($x) { return trim($x->textContent) !== ""; });
+            return (trim($x->textContent) !== "") and (!in_array($x->nodeName, $ignore));
+        });
 
-        //var_dump(array_filter(array_map(function ($x) {
-        //    /** @var DomElement $x */
-        //    return [$x->getNodePath(), trim($x->textContent)];
-        //}, iterator_to_array($textNodes)), function ($x) { return $x[1] !== ""; }));exit;
-
-        // 2.
-
+        // 2. Normalise the data so that details like "span" are ignored and treated as the parent node
         $pathNameIndexedTexts = [];
 
         /*
@@ -97,8 +84,19 @@ function createDOMDocumentFromHTML(string $html): \DOMDocument
     return $doc;
 }
 
-function removeElementsByTagName(\DOMDocument $doc, string $name): \DOMDocument
+/**
+ * @param \DOMDocument|\DOMElement $doc
+ * @param string $name
+ *
+ * @return \DOMDocument|\DOMElement
+ */
+function removeElementsByTagName($doc, string $name)
 {
+    if(!($doc instanceof \DOMDocument) and !($doc instanceof \DOMElement))
+    {
+        throw new \InvalidArgumentException("Argument 1 must be either DOMDocument or DOMElement");
+    }
+
     $elements = $doc->getElementsByTagName($name);
     for ($i = $elements->length; --$i >= 0; ) {
         $href = $elements->item($i);
@@ -106,4 +104,51 @@ function removeElementsByTagName(\DOMDocument $doc, string $name): \DOMDocument
     }
 
     return $doc;
+}
+
+/**
+ * Returns all leaf nodes, ignoring the tag names specified in $ignore
+ *
+ * @param \DOMDocument|\DOMElement $doc
+ * @param string[] $ignore
+ *
+ * @return \DOMDocument[]|\DOMElement[]
+ */
+function selectAllLeafNodesIgnoring($doc, array $ignore)
+{
+    if(!($doc instanceof \DOMDocument) and !($doc instanceof \DOMElement))
+    {
+        throw new \InvalidArgumentException("Argument 1 must be either DOMDocument or DOMElement");
+    }
+
+    if(count(array_filter($ignore, function($x) { return is_string($x); })) !== count($ignore))
+    {
+        throw new \InvalidArgumentException("Argument 2 must be an array of strings");
+    }
+
+    $output = [];
+
+    foreach($doc->getElementsByTagName('*') as $node)
+    {
+        /** @var \DOMElement $node */
+
+        // NOTE: Don't use ->childNodes here - that also includes DOMText
+        $childNodesNotIgnored = array_filter(iterator_to_array($node->getElementsByTagName('*')), function ($x) use ($ignore) {
+            /** @var \DOMElement $x */
+            return !in_array($x->nodeName, $ignore);
+        });
+
+        $numChildNodesNotIgnored = count($childNodesNotIgnored);
+
+        // If this node contains sub-nodes that are not in the ignore list
+        if($numChildNodesNotIgnored)
+        {
+            // Skip processing this node - this is not an allowable leaf node
+            continue;
+        }
+
+        $output[] = $node;
+    }
+
+    return $output;
 }
