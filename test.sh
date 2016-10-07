@@ -1,10 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 command -v php >/dev/null 2>&1 || { echo >&2 "I require php but it's not installed.  Aborting."; exit 1; }
 command -v colordiff >/dev/null 2>&1 || { echo >&2 "I require colordiff but it's not installed.  Aborting."; exit 1; }
 
+echo "Test script by Michael Yoo <michael@yoo.id.au> (c) 2016"
+echo "./test.sh [--diff]"
+echo
 echo "Running test suite curated/article_text ..."
 echo "Note: For diffs, additions mean = additions in the output, so they should be removed from the output"
+echo
 
 tempfile=$(mktemp)
 #trap 'rm -f -- "$tempfile"' INT TERM HUP EXIT

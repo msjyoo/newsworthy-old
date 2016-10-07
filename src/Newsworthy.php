@@ -6,6 +6,11 @@ class Newsworthy
 {
     public static function extractText(\DOMDocument $document): string
     {
+        return static::extractTextWithDebugInfo($document)->text;
+    }
+
+    public static function extractTextWithDebugInfo(\DOMDocument $document): \stdClass
+    {
         $document = removeElementsByTagName($document, 'script');
         $document = removeElementsByTagName($document, 'style');
 
@@ -40,15 +45,15 @@ class Newsworthy
          * Then we count the number of "the" in each of the different Indexed XPaths.
          * This is a nice heuristic to determine which one is the likely article text.
          */
-        $s = array_map(function ($x) {
-            return [substr_count(implode("\r\n", $x), "the"), $x];
-        }, $pathNameIndexedTexts);
+        $s = array_map(function ($x, $key) {
+            return [substr_count(implode("\r\n", $x), "the"), $x, $key]; // here(1232213534)
+        }, $pathNameIndexedTexts, array_keys($pathNameIndexedTexts));
 
         usort($s, function ($a, $b) {
             return $b[0] - $a[0]; // Sort reverse
         });
 
-        // Get the element with the most amount of "the", and get its full node. (0 = number of "the", 1 = full text)
+        // Get the element with the most amount of "the", and get its full node. defined here(1232213534) 1=full text
         $e = $s[0][1];
 
         // Trim each paragraph
@@ -59,7 +64,11 @@ class Newsworthy
         // Filter out the ones that are empty after trimming
         $e = array_filter($e);
 
-        return implode("\r\n\r\n", $e)."\r\n";
+        $output = new \stdClass();
+        $output->text = implode("\r\n\r\n", $e)."\r\n";
+        $output->rootPath = $s[0][2];
+
+        return $output;
     }
 }
 
