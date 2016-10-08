@@ -64,7 +64,12 @@ class Newsworthy
         // Filter out the ones that are empty after trimming
         $e = array_filter($e);
 
+        $e = array_filter($e, function ($x) {
+            return ask($x);
+        });
+
         $output = new \stdClass();
+        $output->paragraphs = $e;
         $output->text = implode("\r\n\r\n", $e)."\r\n";
         $output->rootPath = $s[0][2];
 
@@ -158,6 +163,67 @@ function selectAllLeafNodesIgnoring($doc, array $ignore)
 
         $output[] = $node;
     }
+
+    return $output;
+}
+
+function ask($text)
+{
+    $char1 = 'd';
+    $char2 = 'k';
+    $char1u = strtoupper($char1);
+    $char2u = strtoupper($char2);
+
+    echo "\r\n=========================================\r\n";
+    echo "$text";
+    echo "\r\n=========================================\r\n";
+    echo "Press $char1u if the above text:\r\n";
+    echo "    - Appears to be part of a news article\r\n";
+    echo "Press $char2u if the above text:\r\n";
+    echo "    - Appear to be a header\r\n";
+    echo "    - Appear to be an advertisement\r\n";
+    echo "    - Appear to describe the author\r\n";
+    echo "    - Would be out of place in a news article\r\n";
+
+    if(!function_exists(__NAMESPACE__."\\readchar"))
+    {
+        function readchar($prompt)
+        {
+            readline_callback_handler_install($prompt, function() {});
+            $char = stream_get_contents(STDIN, 1);
+            readline_callback_handler_remove();
+            return $char;
+        }
+    }
+
+    $response = readchar("Response ($char1u/$char2u): ");
+    while($response !== $char1 and $response !== $char2)
+    {
+        echo "Not a valid answer! Please try again.\r\n";
+        $response = readchar("Response ($char1u/$char2u): ");
+    }
+
+    if($response === $char1)
+    {
+        return true;
+    }
+    else if($response === $char2)
+    {
+        return false;
+    }
+    else
+    {
+        throw new \LogicException;
+    }
+}
+
+function fastTextPredict($model_path, $text, $k = 1)
+{
+    $temp_file = tempnam(sys_get_temp_dir(), 'Newsworthy');
+
+    file_put_contents($text, $temp_file);
+
+    $output = system("fasttext predict '$model_path' '$temp_file' $k");
 
     return $output;
 }
