@@ -15,8 +15,6 @@ class Newsworthy
         $document = removeElementsByTagName($document, 'style');
 
         // 1. First, get the leaf text of every node ignoring some textual elements
-        //$textElements = (new \DOMXPath($document))->query("//div | //p | //li");
-
         $textElements = selectAllLeafNodesIgnoring($document, $ignore = ["a", "span", "strong", "i"]);
 
         // Filter elements without any textContent because why not
@@ -226,4 +224,50 @@ function fastTextPredict($model_path, $text, $k = 1)
     $output = system("fasttext predict '$model_path' '$temp_file' $k");
 
     return $output;
+}
+
+/**
+ * @param \DOMDocument|\DOMElement $doc
+ * @param string[] $tagNames
+ *
+ * @return \DOMDocument|\DOMElement
+ */
+function unwrapElementsByTagName($doc, array $tagNames)
+{
+    if(!($doc instanceof \DOMDocument) and !($doc instanceof \DOMElement))
+    {
+        throw new \InvalidArgumentException("Argument 1 must be either DOMDocument or DOMElement");
+    }
+
+    $DOMXPath = new \DOMXPath($doc);
+    $nodes = $DOMXPath->query(implode(" | ", array_map(function ($x) { return "//$x"; }, $tagNames)));
+
+    foreach($nodes as $node)
+    {
+        /** @var \DOMElement $node */
+        $node->parentNode->replaceChild(new \DOMText($node->nodeValue), $node);
+    }
+
+    // Merge duplicate DOMText
+    $doc = createDOMDocumentFromHTML($doc->saveHTML()); // TODO: Optimise
+
+    return $doc;
+}
+
+/**
+ * Returns all textual nodes, unwrapping the tag names specified in $ignore
+ *
+ * @param \DOMDocument|\DOMElement $doc
+ * @param string[] $ignore
+ *
+ * @return \DOMDocument[]|\DOMElement[]
+ */
+function selectAllTextualNodesIgnoring($doc, array $ignore)
+{
+    $doc = unwrapElementsByTagName($doc, $ignore);
+
+    $docXPath = new \DOMXPath($doc);
+    $textNodes = $docXPath->query('//*/text()');
+
+    return iterator_to_array($textNodes);
 }
