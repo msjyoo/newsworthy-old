@@ -1,3 +1,25 @@
+# Fixed some issue today with elements unwrap
+2016-10-13 (1)
+
+Yay!! Turns out that while unwrapping elements, $x->nodeValue contains
+text from all children too so need to exclude certain elements.
+
+Now it gets text from most sites. Just need more test samples
+and to figure out a way to remove the dateline.
+
+Progress!
+
+# I figured out a solution
+2016-10-09 (4)
+
+Here's the solution to the DOMText issue:
+
+First, we unwrap semantic elements like `<a>`. Then, we select the DOM
+texts using XPath. Done!
+
+The problem now is that this is a separate method to the "leaf-node"
+method so there needs to be a way to automate which one to use.
+
 # How to make DOMText as leaf nodes work?
 2016-10-09 (3)
 
@@ -5,7 +27,7 @@ So here's a problem. Some older news websites don't use leaf nodes
 to differentiate their paragraphs. Instead, I've found one that does
 something like this:
 
-```
+```html
 <div id="printable-area">
 ADELAIDE, Some very important news about the biggest storm.
 <br></br>
@@ -23,7 +45,7 @@ there are no leaf nodes that contain the relevant text. Instead, what
 we'll have to do is treat the text between <br> and another <br> as
 its own leaf node.
 
-```
+```html
 <div id="printable-area">
 ADELAIDE, Some very important news about the biggest storm.
 <br></br>
@@ -77,7 +99,7 @@ So how do we extract the text? First, we get all the leaf nodes - nodes
 that do not have any child nodes in them. So for example, these would
 be selected as leaf nodes:
 
-```
+```html
 <p>Second paragraph</p>
 <p>Bad article!</p>
 <div class="advertisement"> READ MORE: Subscribe now! </div>
@@ -88,7 +110,7 @@ For example, links a used a lot within news articles but we don't
 want to ignore paragraphs just because they have links. So, These leaf
 nodes would be selected:
 
-```
+```html
 <p>First paragraph <a>with link</a>.</p>
 <p>Third paragraph <i>italic</i> here</p>
 ```
@@ -96,7 +118,7 @@ nodes would be selected:
 But not this one because it's not a leaf node, and doesn't have a child
 node that is allowable (as an example; of course this is configurable):
 
-```
+```html
 <p>Imaginary paragraph <div>with link</div>.</p>
 ```
 
@@ -106,7 +128,7 @@ we get the XPath of the parent node of those paragraphs because the
 article text is usually always grouped under a single parent node.
 
 So, we have these XPaths:
-```
+```html
 /.../div[1] Leading text: First paragraph with link. (2nd text: Second paragraph, etc.)
 /.../div[2]/div[1] Leading text: Nice article! (2nd text: None)
 ```

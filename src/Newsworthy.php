@@ -15,7 +15,11 @@ class Newsworthy
         $document = removeElementsByTagName($document, 'style');
 
         // 1. First, get the leaf text of every node ignoring some textual elements
-        $textElements = selectAllLeafNodesIgnoring($document, $ignore = ["a", "span", "strong", "i"]);
+        $textElements = selectAllTextualNodesIgnoring($document, $ignore = ["a", "span", "strong", "i"]);
+
+        // Anomalies
+        // If article is leaf nodes, then textual nodes returns very large text
+        // If article is textual nodes, then leaf nodes returns very small text
 
         // Filter elements without any textContent because why not
         $textElements = array_filter($textElements, function ($x) use ($ignore) {
@@ -56,7 +60,7 @@ class Newsworthy
 
         // Trim each paragraph
         $e = array_map(function ($x) {
-            return trim($x);
+            return stripNonPrintingCharacters($x);
         }, $e);
 
         // Filter out the ones that are empty after trimming
@@ -69,7 +73,7 @@ class Newsworthy
         $output = new \stdClass();
         $output->paragraphs = $e;
         $output->text = implode("\r\n\r\n", $e)."\r\n";
-        $output->rootPath = $s[0][2];
+        $output->rootPath = $s[0][2]; // TODO: This doesn't work because it's a stripped version of parent
 
         return $output;
     }
@@ -128,6 +132,8 @@ function removeElementsByTagName($doc, string $name)
  */
 function selectAllLeafNodesIgnoring($doc, array $ignore)
 {
+    $doc = $doc->cloneNode(true);
+
     if(!($doc instanceof \DOMDocument) and !($doc instanceof \DOMElement))
     {
         throw new \InvalidArgumentException("Argument 1 must be either DOMDocument or DOMElement");
@@ -144,18 +150,8 @@ function selectAllLeafNodesIgnoring($doc, array $ignore)
     {
         /** @var \DOMElement $node */
 
-        // NOTE: Don't use ->childNodes here - that also includes DOMText
-        $childNodesNotIgnored = array_filter(iterator_to_array($node->getElementsByTagName('*')), function ($x) use ($ignore) {
-            /** @var \DOMElement $x */
-            return !in_array($x->nodeName, $ignore);
-        });
-
-        $numChildNodesNotIgnored = count($childNodesNotIgnored);
-
-        // If this node contains sub-nodes that are not in the ignore list
-        if($numChildNodesNotIgnored)
+        if(checkNodeContainsChildrenExceptTagNames($node, $ignore))
         {
-            // Skip processing this node - this is not an allowable leaf node
             continue;
         }
 
@@ -167,6 +163,8 @@ function selectAllLeafNodesIgnoring($doc, array $ignore)
 
 function ask($text)
 {
+    return fastTextPredict(__DIR__."/../curated/train/model.bin", $text) === "__label__tcontext";
+
     $char1 = 'd';
     $char2 = 'k';
     $char1u = strtoupper($char1);
@@ -219,11 +217,11 @@ function fastTextPredict($model_path, $text, $k = 1)
 {
     $temp_file = tempnam(sys_get_temp_dir(), 'Newsworthy');
 
-    file_put_contents($text, $temp_file);
+    file_put_contents($temp_file, $text);
 
-    $output = system("fasttext predict '$model_path' '$temp_file' $k");
+    $output = shell_exec("fasttext predict '$model_path' '$temp_file' $k");
 
-    return $output;
+    return trim($output);
 }
 
 /**
@@ -245,7 +243,22 @@ function unwrapElementsByTagName($doc, array $tagNames)
     foreach($nodes as $node)
     {
         /** @var \DOMElement $node */
-        $node->parentNode->replaceChild(new \DOMText($node->nodeValue), $node);
+
+        // Because $node->nodeValue contains text from all child elements too
+        // Check if the element we are unwrapping doesn't have more children
+        // Besides the ones we are ignoring.
+        //
+        // e.g. <span><p><a>Hello</a></p></span> $tagNames = ["a", "span"]
+        // It might select the root span element and then get all text within it, removing the <p>
+        // which is what we don't want.
+        if(checkNodeContainsChildrenExceptTagNames($node, $tagNames))
+        {
+            continue;
+        }
+
+        $parentNode = $node->parentNode;
+        $parentNode->replaceChild(new \DOMText(trim($node->nodeValue)), $node);
+        unset($node);
     }
 
     // Merge duplicate DOMText
@@ -264,10 +277,78 @@ function unwrapElementsByTagName($doc, array $tagNames)
  */
 function selectAllTextualNodesIgnoring($doc, array $ignore)
 {
+    $doc = $doc->cloneNode(true);
+
     $doc = unwrapElementsByTagName($doc, $ignore);
 
     $docXPath = new \DOMXPath($doc);
     $textNodes = $docXPath->query('//*/text()');
 
     return iterator_to_array($textNodes);
+}
+
+// TODO: Only unwrap if the text is directly underneath, e.g. <span><p><span></span>ActualText</p></span>
+
+// http://stackoverflow.com/a/20766625/1349450
+function stripNonPrintingCharacters($string) {
+    $s = trim($string);
+
+    // News websites using non standard punctuation characters -_-
+    $s = str_replace("“", "\"", $s);
+    $s = str_replace("”", "\"", $s);
+    $s = str_replace("’", "'", $s);
+    $s = str_replace("…", "...", $s);
+    $s = str_replace("—" /* ord(226) */, "-", $s);
+    //$s = str_replace("–", "-", $s);
+
+    // Temporary Solution
+    $s = preg_replace('/[\x00-\x1F\x80-\xFF]+/', ' ', $s); // Strip all non-ascii, control characters and extended ASCII
+
+    return $s;
+}
+/**
+ * @param \DOMDocument|\DOMElement $doc
+ * @param string[] $tagNamesIgnore
+ *
+ * @return bool
+ */
+function checkNodeContainsChildrenExceptTagNames($doc, array $tagNamesIgnore)
+{
+    if(!($doc instanceof \DOMDocument) and !($doc instanceof \DOMElement))
+    {
+        throw new \InvalidArgumentException("Argument 1 must be either DOMDocument or DOMElement");
+    }
+
+    foreach($doc->getElementsByTagName("*") as $node)
+    {
+        /** @var \DOMElement $node */
+
+        // NOTE: Don't use ->childNodes here - that also includes DOMText
+        $childNodesNotIgnored = array_filter(iterator_to_array($node->getElementsByTagName("*")), function ($x) use ($tagNamesIgnore) {
+            /** @var \DOMElement $x */
+            return !in_array($x->nodeName, $tagNamesIgnore);
+        });
+
+        $numChildNodesNotIgnored = count($childNodesNotIgnored);
+
+        // If this node contains sub-nodes that are not in the ignore list
+        if($numChildNodesNotIgnored)
+        {
+            // This is not an allowable child node
+            // Return true as this node contains child nodes not in the "except list"
+
+            return true;
+        }
+    }
+
+    // No node has child elements that are not in the ignore list
+    return false;
+}
+
+function stripDateline($string)
+{
+    // Examples:
+    // LOCATION, Text goes on
+    // LOCATION/LOCATION Text goes on
+    // LOCATION (AB) -- Text goes on
 }

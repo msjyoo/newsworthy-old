@@ -31,7 +31,7 @@ for dir in curated/article_text/*; do
         );
 
         exit;
-        " | dos2unix | diff -u "$tempfile" - | colordiff)
+        " | dos2unix | diff -u "$tempfile" - | diff-highlight | colordiff) # cat -A, or sed -n 'l 999999' for octal codes!
 
         if [[ "$diffout" ]]; then
             echo "FAIL"
